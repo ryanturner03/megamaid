@@ -1,0 +1,2 @@
+name = "match-array-test"
+match = ["/category/**", "/product-detail/**"]

@@ -1,0 +1,10 @@
+.remember/
+node_modules/
+dist/
+.worktrees/
+.DS_Store
+docs/
+/output/
+debug/
+/sample-output/
+sites/

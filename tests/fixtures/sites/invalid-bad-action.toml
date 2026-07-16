@@ -1,0 +1,5 @@
+name = "badaction"
+
+[[preActions]]
+action = "jump"
+selector = "button"

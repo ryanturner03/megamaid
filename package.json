@@ -1,0 +1,43 @@
+{
+  "name": "megamaid",
+  "version": "0.1.0",
+  "description": "She's gone from suck to blow! — Web content extraction as clean Markdown",
+  "type": "module",
+  "bin": {
+    "megamaid": "./dist/cli/index.js",
+    "webnav": "./dist/cli-webnav/index.js"
+  },
+  "main": "./dist/core/megamaid.js",
+  "types": "./dist/core/megamaid.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/core/megamaid.js",
+      "types": "./dist/core/megamaid.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:acceptance": "vitest run --config vitest.acceptance.config.ts",
+    "megamaid": "node bin/megamaid.js",
+    "webnav": "node bin/webnav.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^14.0.3",
+    "minimatch": "^10.2.4",
+    "playwright": "^1.58.2",
+    "smol-toml": "^1.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.2"
+  }
+}

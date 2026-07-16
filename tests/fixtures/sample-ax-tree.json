@@ -1,0 +1,93 @@
+{
+  "nodes": [
+    {
+      "nodeId": "1",
+      "role": { "value": "RootWebArea" },
+      "name": { "value": "Test Page" },
+      "backendDOMNodeId": 1,
+      "childIds": ["2", "3", "7"],
+      "ignored": { "value": false }
+    },
+    {
+      "nodeId": "2",
+      "role": { "value": "heading" },
+      "name": { "value": "Welcome to Testing" },
+      "backendDOMNodeId": 37,
+      "properties": [
+        { "name": "level", "value": { "type": "integer", "value": 1 } }
+      ],
+      "childIds": [],
+      "ignored": { "value": false }
+    },
+    {
+      "nodeId": "3",
+      "role": { "value": "paragraph" },
+      "name": { "value": "" },
+      "backendDOMNodeId": 52,
+      "childIds": ["4"],
+      "ignored": { "value": false }
+    },
+    {
+      "nodeId": "4",
+      "role": { "value": "StaticText" },
+      "name": { "value": "This is a test paragraph with some content." },
+      "backendDOMNodeId": 53,
+      "childIds": [],
+      "ignored": { "value": false }
+    },
+    {
+      "nodeId": "5",
+      "role": { "value": "generic" },
+      "name": { "value": "" },
+      "backendDOMNodeId": 60,
+      "childIds": ["6"],
+      "ignored": { "value": false }
+    },
+    {
+      "nodeId": "6",
+      "role": { "value": "StaticText" },
+      "name": { "value": "Nested text" },
+      "backendDOMNodeId": 61,
+      "childIds": [],
+      "ignored": { "value": false }
+    },
+    {
+      "nodeId": "7",
+      "role": { "value": "link" },
+      "name": { "value": "Click here" },
+      "backendDOMNodeId": 70,
+      "properties": [
+        { "name": "url", "value": { "type": "string", "value": "https://example.com/page" } }
+      ],
+      "childIds": [],
+      "ignored": { "value": false }
+    },
+    {
+      "nodeId": "8",
+      "role": { "value": "image" },
+      "name": { "value": "A test image" },
+      "backendDOMNodeId": 80,
+      "properties": [
+        { "name": "url", "value": { "type": "string", "value": "https://example.com/img.png" } }
+      ],
+      "childIds": [],
+      "ignored": { "value": false }
+    },
+    {
+      "nodeId": "9",
+      "role": { "value": "none" },
+      "name": { "value": "" },
+      "backendDOMNodeId": 90,
+      "childIds": [],
+      "ignored": { "value": false }
+    },
+    {
+      "nodeId": "10",
+      "role": { "value": "generic" },
+      "name": { "value": "" },
+      "backendDOMNodeId": 100,
+      "childIds": [],
+      "ignored": { "value": true }
+    }
+  ]
+}

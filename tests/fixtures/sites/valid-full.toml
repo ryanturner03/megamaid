@@ -1,0 +1,26 @@
+name = "fulltest"
+startUrl = "https://example.com/login"
+match = "/docs/{guide,api}/**"
+
+exclude = [
+  "/docs/legacy/**",
+  "/docs/**/changelog",
+]
+
+[[preActions]]
+action = "type"
+selector = "input[name='email']"
+value = "user@example.com"
+
+[[preActions]]
+action = "click"
+selector = "button.submit"
+
+[[preActions]]
+action = "wait"
+selector = ".dashboard"
+timeout = 5000
+
+[[preActions]]
+action = "delay"
+ms = 2000

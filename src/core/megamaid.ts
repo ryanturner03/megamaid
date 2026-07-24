@@ -9,6 +9,7 @@ import { saveCrawlState, loadCrawlState, deleteCrawlState } from "./crawlState.j
 import { writeSnapshot, writeSiteManifest, loadSiteManifest } from "./snapshotWriter.js";
 import { executePreActions } from "./preActions.js";
 import { extractLinks, matchesPattern } from "./crawler.js";
+import { urlToPageName } from "./urlToPageName.js";
 import { mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
@@ -356,6 +357,7 @@ export class Megamaid {
       retryFailed?: boolean;
       siteConfigPath?: string;
       excludePatterns?: string[];
+      preserveQuery?: boolean;
     } = {}
   ): Promise<SiteManifest> {
     const outputDir = options.outputDir ?? this.options.outputDir ?? "./output";
@@ -364,6 +366,11 @@ export class Megamaid {
 
     // Normalize start URL
     const normalizedStart = startUrl.replace(/\/+$/, "");
+
+    // Resolve query handling: option > persisted state (restored in the resume
+    // branch below). Must match the setting the queue was built with, or
+    // resumed crawls would re-collapse newly discovered links.
+    let preserveQuery = options.preserveQuery;
 
     // Resolve effective excludes: option > instance option. The resume branch
     // below may additionally fall back to the persisted state.config.exclude.
@@ -381,6 +388,10 @@ export class Megamaid {
       // so resumed crawls use the same exclude set even if site config changes.
       if (!excludePatterns && existingState?.config.exclude) {
         excludePatterns = existingState.config.exclude;
+      }
+
+      if (preserveQuery === undefined && existingState?.config.preserveQuery !== undefined) {
+        preserveQuery = existingState.config.preserveQuery;
       }
 
       if (existingState) {
@@ -440,11 +451,11 @@ export class Megamaid {
         );
       } else {
         console.log("No interrupted crawl found. Starting fresh.");
-        state = this.initCrawlState(normalizedStart, { ...options, excludePatterns });
+        state = this.initCrawlState(normalizedStart, { ...options, excludePatterns, preserveQuery });
         manifest = this.initManifest(normalizedStart, options);
       }
     } else {
-      state = this.initCrawlState(normalizedStart, { ...options, excludePatterns });
+      state = this.initCrawlState(normalizedStart, { ...options, excludePatterns, preserveQuery });
       manifest = this.initManifest(normalizedStart, options);
     }
 
@@ -511,7 +522,7 @@ export class Megamaid {
 
           // Discover new links from the snapshot's urlMap
           const snapshotUrlMap = new Map(Object.entries(result.snapshotFile.urlMap));
-          const newLinks = extractLinks(snapshotUrlMap, startUrl);
+          const newLinks = extractLinks(snapshotUrlMap, startUrl, { preserveQuery });
           let added = 0;
           const discovered = new Set(state.discoveredUrls);
           for (const link of newLinks) {
@@ -580,7 +591,13 @@ export class Megamaid {
 
   private initCrawlState(
     normalizedStart: string,
-    options: { match?: string[]; selector?: string; siteConfigPath?: string; excludePatterns?: string[] }
+    options: {
+      match?: string[];
+      selector?: string;
+      siteConfigPath?: string;
+      excludePatterns?: string[];
+      preserveQuery?: boolean;
+    }
   ): CrawlState {
     return {
       version: 1,
@@ -598,6 +615,7 @@ export class Megamaid {
         siteConfig: options.siteConfigPath,
         session: this.options.sessionPath,
         exclude: options.excludePatterns,
+        preserveQuery: options.preserveQuery,
       },
     };
   }
@@ -676,22 +694,6 @@ function pageImageFetcher(page: Page): ImageFetcher {
   };
 }
 
-export function urlToPageName(url: string): string {
-  try {
-    const parsed = new URL(url);
-    const pathParts = parsed.pathname
-      .replace(/^\/|\/$/g, "")
-      .split("/")
-      .filter(Boolean);
-
-    if (pathParts.length === 0) return parsed.hostname.replace(/\./g, "-");
-
-    return pathParts
-      .join("-")
-      .replace(/[^a-zA-Z0-9-]/g, "-")
-      .replace(/-+/g, "-")
-      .substring(0, 80);
-  } catch {
-    return "page";
-  }
-}
+// Re-exported for existing importers; implementation lives in its own module
+// so snapshotWriter (snapshot filenames) and this file (image folders) agree.
+export { urlToPageName };

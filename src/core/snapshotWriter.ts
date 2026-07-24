@@ -2,6 +2,7 @@
 import { writeFile, readFile, mkdir, rename } from "fs/promises";
 import path from "path";
 import type { SnapshotFile, SiteManifest } from "../types/index.js";
+import { urlToPageName } from "./urlToPageName.js";
 
 const SNAPSHOTS_DIR = "snapshots";
 const MANIFEST_FILENAME = "site.json";
@@ -53,22 +54,3 @@ export async function loadSiteManifest(
   }
 }
 
-function urlToPageName(url: string): string {
-  try {
-    const parsed = new URL(url);
-    const pathParts = parsed.pathname
-      .replace(/^\/|\/$/g, "")
-      .split("/")
-      .filter(Boolean);
-
-    if (pathParts.length === 0) return parsed.hostname.replace(/\./g, "-");
-
-    return pathParts
-      .join("-")
-      .replace(/[^a-zA-Z0-9-]/g, "-")
-      .replace(/-+/g, "-")
-      .substring(0, 80);
-  } catch {
-    return "page";
-  }
-}

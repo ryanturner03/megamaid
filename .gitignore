@@ -8,3 +8,7 @@ docs/
 debug/
 /sample-output/
 sites/
+# Crawl output. A relative --out resolves against this package root rather than
+# the caller's cwd, so scrape results can land here unintentionally — and this
+# repo is public, so captured URLs must never be committed.
+.local/

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { writeSnapshot, writeSiteManifest, loadSiteManifest } from "../../src/core/snapshotWriter.js";
 import type { SnapshotFile, SiteManifest } from "../../src/types/index.js";
-import { mkdtemp, rm, readFile } from "fs/promises";
+import { mkdtemp, rm, readFile, readdir } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";
 
@@ -25,6 +25,43 @@ const sampleSnapshot: SnapshotFile = {
   nodeCount: 42,
   capturedAt: "2026-04-03T12:00:00.000Z",
 };
+
+describe("writeSnapshot filename derivation", () => {
+  // Query-addressed portals put the page identity
+  // entirely in the query string: /s/document-item?bundleId=X&topicId=Y. Naming
+  // files from the pathname alone made every document overwrite the same
+  // s-document-item.json — a 5-page crawl left 2 files on disk.
+  it("gives URLs differing only in query distinct filenames", async () => {
+    const base = "https://help.example.com/s/document-item";
+    const a = await writeSnapshot(
+      { ...sampleSnapshot, url: `${base}?bundleId=uml165&topicId=fcb165.html` },
+      tempDir
+    );
+    const b = await writeSnapshot(
+      { ...sampleSnapshot, url: `${base}?bundleId=nmc164&topicId=ksr164.html` },
+      tempDir
+    );
+    expect(a).not.toBe(b);
+    expect(await readdir(path.join(tempDir, "snapshots"))).toHaveLength(2);
+  });
+
+  it("is deterministic for the same URL", async () => {
+    const url = "https://help.example.com/s/csh?context=afb410";
+    const a = await writeSnapshot({ ...sampleSnapshot, url }, tempDir);
+    const b = await writeSnapshot({ ...sampleSnapshot, url }, tempDir);
+    expect(a).toBe(b);
+    expect(await readdir(path.join(tempDir, "snapshots"))).toHaveLength(1);
+  });
+
+  it("leaves path-only URLs named exactly as before", async () => {
+    // Existing corpora on disk depend on these names — no churn allowed.
+    const rel = await writeSnapshot(
+      { ...sampleSnapshot, url: "https://docs.example.com/r/en-US/x8e31f38/u136a4e9" },
+      tempDir
+    );
+    expect(rel).toBe(path.join("snapshots", "r-en-US-x8e31f38-u136a4e9.json"));
+  });
+});
 
 describe("writeSnapshot", () => {
   it("writes a snapshot JSON file to snapshots/ directory", async () => {

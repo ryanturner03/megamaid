@@ -62,6 +62,7 @@ describe("navigateTo", () => {
       goto: vi.fn().mockResolvedValue(null),
       waitForLoadState: vi.fn().mockResolvedValue(null),
       waitForTimeout: vi.fn().mockResolvedValue(null),
+      waitForFunction: vi.fn().mockResolvedValue(null),
     };
 
     await navigateTo(mockPage as any, "https://example.com");
@@ -73,5 +74,34 @@ describe("navigateTo", () => {
     // Should also wait for networkidle + SPA render time
     expect(mockPage.waitForLoadState).toHaveBeenCalled();
     expect(mockPage.waitForTimeout).toHaveBeenCalledWith(2000);
+  });
+
+  it("waits for the body to render text before returning", async () => {
+    // Client-hydrated frameworks (enterprise component frameworks, SPAs generally)
+    // reach readyState "complete" with the full HTML payload but an EMPTY
+    // body. Capturing there yields a one-node snapshot, so the wait has to be
+    // condition-based rather than a fixed sleep.
+    const mockPage = {
+      goto: vi.fn().mockResolvedValue(null),
+      waitForLoadState: vi.fn().mockResolvedValue(null),
+      waitForTimeout: vi.fn().mockResolvedValue(null),
+      waitForFunction: vi.fn().mockResolvedValue(null),
+    };
+
+    await navigateTo(mockPage as any, "https://example.com");
+
+    expect(mockPage.waitForFunction).toHaveBeenCalled();
+  });
+
+  it("proceeds when the body never renders instead of throwing", async () => {
+    // A genuinely blank page must not abort the crawl.
+    const mockPage = {
+      goto: vi.fn().mockResolvedValue(null),
+      waitForLoadState: vi.fn().mockResolvedValue(null),
+      waitForTimeout: vi.fn().mockResolvedValue(null),
+      waitForFunction: vi.fn().mockRejectedValue(new Error("timeout")),
+    };
+
+    await expect(navigateTo(mockPage as any, "https://example.com")).resolves.toBeUndefined();
   });
 });

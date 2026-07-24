@@ -46,4 +46,71 @@ describe("extractLinks", () => {
     const links = extractLinks(urlMap, "https://example.com");
     expect(links.length).toBe(1);
   });
+
+  it("discards query strings by default", () => {
+    // Path-addressed sites (the norm): query params are sort/filter/tracking
+    // noise, and collapsing them keeps the frontier bounded.
+    const urlMap = new Map([
+      ["0-10", "https://example.com/docs?sort=asc"],
+      ["0-20", "https://example.com/docs?sort=desc"],
+    ]);
+
+    const links = extractLinks(urlMap, "https://example.com");
+    expect(links).toEqual(["https://example.com/docs"]);
+  });
+});
+
+describe("extractLinks with preserveQuery", () => {
+  // Some portals address every doc by query string, sharing one pathname:
+  // /s/document-item?bundleId=X&topicId=Y. Without preserveQuery an entire
+  // corpus collapses to a single URL.
+  it("treats distinct query strings as distinct pages", () => {
+    const urlMap = new Map([
+      ["0-10", "https://help.example.com/s/document-item?bundleId=uml165&topicId=fcb165.html"],
+      ["0-20", "https://help.example.com/s/document-item?bundleId=uml165&topicId=abc999.html"],
+      ["0-30", "https://help.example.com/s/document-item?bundleId=nmc164&topicId=ksr164.html"],
+    ]);
+
+    const links = extractLinks(urlMap, "https://help.example.com", { preserveQuery: true });
+    expect(links.length).toBe(3);
+    expect(links).toContain(
+      "https://help.example.com/s/document-item?bundleId=uml165&topicId=fcb165.html"
+    );
+  });
+
+  it("strips tracking params before deduplicating", () => {
+    // Both links point at the same topic; only the search-bar attribution
+    // differs. Without stripping, the same page is captured twice.
+    const urlMap = new Map([
+      ["0-10", "https://help.example.com/s/document-item?bundleId=nmc164&topicId=ksr164.html"],
+      [
+        "0-20",
+        "https://help.example.com/s/document-item?bundleId=nmc164&topicId=ksr164.html&utm_source=searchbar&utm_medium=faq",
+      ],
+      ["0-30", "https://help.example.com/s/documents?page=1&_hsenc=p2ANqtz-9&hsLang=en"],
+    ]);
+
+    const links = extractLinks(urlMap, "https://help.example.com", { preserveQuery: true });
+    expect(links).toEqual([
+      "https://help.example.com/s/document-item?bundleId=nmc164&topicId=ksr164.html",
+      "https://help.example.com/s/documents?page=1",
+    ]);
+  });
+
+  it("keeps the bare path when only tracking params were present", () => {
+    const urlMap = new Map([["0-10", "https://help.example.com/s/answers?utm_medium=email"]]);
+
+    const links = extractLinks(urlMap, "https://help.example.com", { preserveQuery: true });
+    expect(links).toEqual(["https://help.example.com/s/answers"]);
+  });
+
+  it("still rejects cross-host links", () => {
+    const urlMap = new Map([
+      ["0-10", "https://help.example.com/s/csh?context=afb410"],
+      ["0-20", "https://www.other-host.com/blog?utm_source=docs"],
+    ]);
+
+    const links = extractLinks(urlMap, "https://help.example.com", { preserveQuery: true });
+    expect(links).toEqual(["https://help.example.com/s/csh?context=afb410"]);
+  });
 });

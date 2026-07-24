@@ -146,6 +146,10 @@ Crawl behavior:
             }
           }
 
+          if (siteConfig?.preserveQuery) {
+            console.log(`Preserving query strings in discovered links (site config)`);
+          }
+
           // Block overwriting an existing crawl without --resume
           if (!opts.resume) {
             const { detectInterruptedCrawl } = await import("../../core/crawlState.js");
@@ -168,6 +172,7 @@ Crawl behavior:
             retryFailed: opts.retryFailed,
             siteConfigPath: opts.siteConfig ? await resolveSiteConfigPath(opts.siteConfig) : undefined,
             excludePatterns: siteConfig?.exclude,
+            preserveQuery: siteConfig?.preserveQuery,
           });
 
           console.log(`\nDone. ${manifest.pageCount} pages snapshotted to ${opts.out}/`);

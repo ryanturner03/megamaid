@@ -71,6 +71,8 @@ export interface SiteConfig {
   preActions?: PreAction[];
   exclude?: string[];
   match?: string[];
+  /** Keep query strings when deduping/queueing links (query-addressed sites). */
+  preserveQuery?: boolean;
 }
 
 export type PreAction =
@@ -97,6 +99,7 @@ export interface CrawlState {
     siteConfig?: string;
     session?: string;
     exclude?: string[];
+    preserveQuery?: boolean;
   };
 }
 

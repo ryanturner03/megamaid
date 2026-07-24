@@ -6,6 +6,20 @@ import type { SiteConfig, PreAction } from "../types/index.js";
 const VALID_ACTIONS = new Set(["click", "type", "wait", "delay"]);
 
 /**
+ * Keys each action legitimately accepts. Anything else in a preAction table is
+ * almost always a top-level key that TOML absorbed: writing `exclude = [...]`
+ * *after* a [[preActions]] block makes it a member of that block rather than of
+ * the document root, so the setting silently does nothing. Rejecting unknown
+ * keys turns that class of typo into a loud error at load time.
+ */
+const ACTION_KEYS: Record<string, string[]> = {
+  click: ["action", "selector"],
+  type: ["action", "selector", "value"],
+  wait: ["action", "selector", "timeout"],
+  delay: ["action", "ms"],
+};
+
+/**
  * Load and validate a site config from a TOML file.
  * Throws a clear error if the file is missing, malformed, or fails validation.
  */
@@ -58,6 +72,13 @@ export async function loadSiteConfig(filepath: string): Promise<SiteConfig> {
     }
   }
 
+  if (parsed.preserveQuery !== undefined) {
+    if (typeof parsed.preserveQuery !== "boolean") {
+      throw new Error(`Site config ${filepath}: preserveQuery must be a boolean`);
+    }
+    config.preserveQuery = parsed.preserveQuery;
+  }
+
   if (parsed.preActions !== undefined) {
     if (!Array.isArray(parsed.preActions)) {
       throw new Error(`Site config ${filepath}: preActions must be an array`);
@@ -75,6 +96,16 @@ function validatePreAction(entry: any, filepath: string, index: number): PreActi
   if (!VALID_ACTIONS.has(entry.action)) {
     throw new Error(
       `Site config ${filepath}: preActions[${index}] has invalid action "${entry.action}" (must be click, type, wait, or delay)`
+    );
+  }
+  const allowed = ACTION_KEYS[entry.action];
+  const unknown = Object.keys(entry).filter((k) => !allowed.includes(k));
+  if (unknown.length > 0) {
+    throw new Error(
+      `Site config ${filepath}: preActions[${index}] (${entry.action}) has unknown key(s): ` +
+        `${unknown.join(", ")}. Top-level settings such as match, exclude, and preserveQuery ` +
+        `must appear before the first [[preActions]] block — TOML assigns any key written after ` +
+        `one to that block instead of to the config root.`
     );
   }
   switch (entry.action) {

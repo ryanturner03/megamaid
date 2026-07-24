@@ -46,6 +46,34 @@ describe("loadSiteConfig", () => {
     expect(config.match).toEqual(["/category/**", "/product-detail/**"]);
   });
 
+  it("parses preserveQuery", async () => {
+    const config = await loadSiteConfig(path.join(fixtureDir, "valid-preserve-query.toml"));
+    expect(config.preserveQuery).toBe(true);
+  });
+
+  it("leaves preserveQuery undefined when absent", async () => {
+    const config = await loadSiteConfig(path.join(fixtureDir, "valid-minimal.toml"));
+    expect(config.preserveQuery).toBeUndefined();
+  });
+
+  it("throws clear error when preserveQuery is not a boolean", async () => {
+    await expect(
+      loadSiteConfig(path.join(fixtureDir, "invalid-preserve-query.toml"))
+    ).rejects.toThrow(/preserveQuery.*boolean/i);
+  });
+
+  it("rejects unknown keys in a preAction, naming the key and the fix", async () => {
+    // Top-level keys written after a [[preActions]] block are absorbed into
+    // that table by TOML's scoping rules, silently disabling them. This bit
+    // a real site config: its `exclude` list never reached the crawler.
+    await expect(
+      loadSiteConfig(path.join(fixtureDir, "invalid-leaked-key.toml"))
+    ).rejects.toThrow(/exclude/);
+    await expect(
+      loadSiteConfig(path.join(fixtureDir, "invalid-leaked-key.toml"))
+    ).rejects.toThrow(/before the first \[\[preActions\]\]/i);
+  });
+
   it("throws clear error when name field is missing", async () => {
     await expect(
       loadSiteConfig(path.join(fixtureDir, "invalid-no-name.toml"))

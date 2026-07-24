@@ -260,6 +260,27 @@ export async function navigateTo(
     // networkidle timed out — that's OK for SPAs
   }
 
+  // Wait for the app to actually render something. Client-hydrated frameworks
+  // (enterprise component frameworks most acutely) serve the whole payload and reach
+  // readyState "complete" while document.body is still empty — networkidle can
+  // pass and the fixed delay below can expire before the first paint. Capturing
+  // then yields a one-node snapshot with a generic site-level title, which is
+  // what the shell_markers sweep exists to mop up. Waiting on the condition
+  // instead of the clock removes most of those at the source.
+  //
+  // Deliberately non-fatal: a legitimately text-free page (an image or a PDF
+  // viewer) should still be captured, so a timeout here falls through.
+  try {
+    // Passed as a string (like scrollPage below) because tsconfig omits the DOM lib.
+    await page.waitForFunction(
+      `!!(document.body && document.body.innerText.trim().length > 0)`,
+      undefined,
+      { timeout: Math.min(timeout, 15_000) }
+    );
+  } catch {
+    // Never rendered text — capture whatever is there.
+  }
+
   // Give SPAs time to render
   await page.waitForTimeout(2000);
 

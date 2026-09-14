@@ -97,4 +97,20 @@ describe("loadSiteConfig", () => {
       loadSiteConfig(path.join(fixtureDir, "invalid-malformed.toml"))
     ).rejects.toThrow();
   });
+
+  it("parses settleMs", async () => {
+    const config = await loadSiteConfig(path.join(fixtureDir, "valid-settle-ms.toml"));
+    expect(config.settleMs).toBe(20000);
+  });
+
+  it("leaves settleMs undefined when absent, so the default applies", async () => {
+    const config = await loadSiteConfig(path.join(fixtureDir, "valid-minimal.toml"));
+    expect(config.settleMs).toBeUndefined();
+  });
+
+  it("throws clear error when settleMs is negative", async () => {
+    await expect(
+      loadSiteConfig(path.join(fixtureDir, "invalid-settle-ms.toml"))
+    ).rejects.toThrow(/settleMs/i);
+  });
 });

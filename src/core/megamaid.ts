@@ -1,5 +1,5 @@
 // src/core/megamaid.ts
-import { connectBrowser, navigateTo, closeBrowser, humanDelay, dismissCookieBanners, type BrowserConnection, type CookieParam } from "./browser.js";
+import { connectBrowser, navigateTo, settleOnly, closeBrowser, humanDelay, dismissCookieBanners, type BrowserConnection, type CookieParam } from "./browser.js";
 import { captureAxTree, captureAxTreeScoped } from "./snapshot/capture.js";
 import { pruneAxTree, buildFormattedNodes } from "./snapshot/a11yTree.js";
 import { formatTree, enrichMapsFromAxNodes, resolveImageSrcsFromDOM } from "./snapshot/treeFormatter.js";
@@ -27,6 +27,8 @@ export interface MegamaidOptions {
   concurrency?: number;
   sessionPath?: string;
   preActions?: PreAction[];
+  /** Extra per-page settle before capture, ms (site config). */
+  settleMs?: number;
   startUrl?: string;
   headed?: boolean;
   proxy?: string;
@@ -112,9 +114,22 @@ export class Megamaid {
     // Get browser with session established (reuses existing connection)
     const conn = await this.ensureSession();
 
-    // Navigate to the target page
-    console.log(`  [snapshot] navigating to ${url}`);
-    await navigateTo(conn.page, url, { referrer: options.referrer });
+    // Navigate to the target page — unless preActions already landed us on it.
+    //
+    // Re-navigating resets a client-rendered app, and some of them only
+    // populate correctly on the load that returns from the SSO redirect: the
+    // Wiz console leaves its content pane on `status: "Loading"` forever when
+    // /product-updates is loaded as a plain second navigation, while the same
+    // URL reached as the startUrl renders in full. Where the site config points
+    // startUrl at the page we want, capturing what preActions already rendered
+    // is both correct and one page-load cheaper.
+    if (conn.page.url() === url) {
+      console.log(`  [snapshot] already on ${url} — capturing without re-navigating`);
+      await settleOnly(conn.page, { settleMs: this.options.settleMs });
+    } else {
+      console.log(`  [snapshot] navigating to ${url}`);
+      await navigateTo(conn.page, url, { referrer: options.referrer, settleMs: this.options.settleMs });
+    }
     const pageTitle = await conn.page.title().catch(() => "(unknown)");
     console.log(`  [snapshot] loaded — title: "${pageTitle}", url: ${conn.page.url()}`);
 

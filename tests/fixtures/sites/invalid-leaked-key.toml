@@ -1,0 +1,8 @@
+name = "leaked-key"
+
+[[preActions]]
+action = "delay"
+ms = 15000
+
+# TOML trap: this belongs to the preActions table above, not the document root.
+exclude = ["/p/release-notes"]

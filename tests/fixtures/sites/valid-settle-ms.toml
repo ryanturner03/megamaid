@@ -1,0 +1,3 @@
+name = "settletest"
+startUrl = "https://example.com/console"
+settleMs = 20000

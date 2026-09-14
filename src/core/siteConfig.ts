@@ -79,6 +79,13 @@ export async function loadSiteConfig(filepath: string): Promise<SiteConfig> {
     config.preserveQuery = parsed.preserveQuery;
   }
 
+  if (parsed.settleMs !== undefined) {
+    if (typeof parsed.settleMs !== "number" || !Number.isFinite(parsed.settleMs) || parsed.settleMs < 0) {
+      throw new Error(`Site config ${filepath}: settleMs must be a non-negative number`);
+    }
+    config.settleMs = parsed.settleMs;
+  }
+
   if (parsed.preActions !== undefined) {
     if (!Array.isArray(parsed.preActions)) {
       throw new Error(`Site config ${filepath}: preActions must be an array`);

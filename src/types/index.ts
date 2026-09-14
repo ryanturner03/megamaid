@@ -73,6 +73,15 @@ export interface SiteConfig {
   match?: string[];
   /** Keep query strings when deduping/queueing links (query-addressed sites). */
   preserveQuery?: boolean;
+  /**
+   * Extra settle after each page load, in ms, before the snapshot is taken
+   * (default 2000). For SPA consoles whose shell renders immediately while the
+   * content pane keeps loading: the built-in wait only requires that the body
+   * have *some* text, which a nav bar satisfies at once, so the page is
+   * captured as an empty shell. Opt-in per site — a large value here multiplies
+   * across every page of a crawl.
+   */
+  settleMs?: number;
 }
 
 export type PreAction =

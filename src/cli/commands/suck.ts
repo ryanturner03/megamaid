@@ -114,6 +114,7 @@ Crawl behavior:
           concurrency: parseInt(opts.concurrency),
           sessionPath,
           preActions: siteConfigPreActions,
+          settleMs: siteConfig?.settleMs,
           startUrl: siteConfig?.startUrl,
           headed: opts.headed,
           proxy: opts.proxy,

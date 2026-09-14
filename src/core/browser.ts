@@ -237,6 +237,7 @@ export async function navigateTo(
     timeout?: number;
     waitForSelector?: string;
     referrer?: string;
+    settleMs?: number;
   } = {}
 ): Promise<void> {
   const timeout = options.timeout ?? 30_000;
@@ -281,8 +282,23 @@ export async function navigateTo(
     // Never rendered text — capture whatever is there.
   }
 
-  // Give SPAs time to render
-  await page.waitForTimeout(2000);
+  await settleOnly(page, { settleMs: options.settleMs });
+}
+
+/**
+ * The post-load settle, without navigating: wait for the app to paint, then
+ * scroll to trigger lazy content. Used directly when preActions already left
+ * the browser on the page we want, where re-navigating would reset it.
+ */
+export async function settleOnly(
+  page: Page,
+  options: { settleMs?: number } = {}
+): Promise<void> {
+  // Give SPAs time to render. Configurable per site (settleMs): the built-in
+  // wait only requires that the body have SOME text, which an app shell's nav
+  // bar satisfies immediately, so a console whose content pane is still loading
+  // gets captured empty. Default unchanged at 2s so no existing crawl slows.
+  await page.waitForTimeout(options.settleMs ?? 2000);
 
   // Scroll down the page — triggers lazy-loaded content and simulates human reading
   await scrollPage(page);

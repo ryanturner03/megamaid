@@ -1,6 +1,6 @@
 // tests/unit/crawler.test.ts
 import { describe, it, expect } from "vitest";
-import { matchesPattern, extractLinks } from "../../src/core/crawler.js";
+import { matchesPattern, extractLinks, canonicalFor } from "../../src/core/crawler.js";
 
 describe("matchesPattern", () => {
   it("matches glob patterns against URL paths", () => {
@@ -112,5 +112,91 @@ describe("extractLinks with preserveQuery", () => {
 
     const links = extractLinks(urlMap, "https://help.example.com", { preserveQuery: true });
     expect(links).toEqual(["https://help.example.com/s/csh?context=afb410"]);
+  });
+});
+
+describe("canonicalFor", () => {
+  // A help centre that redirects /articles/<id> and stale slugs to
+  // /articles/<id>-<current-slug>, and bounces logged-out visitors to sign-in.
+  const scope = {
+    startUrl: "https://example.com/hc",
+    match: ["/hc/**"],
+    exclude: ["/hc/private/**"],
+  };
+  const canonical = "https://example.com/hc/articles/1-title";
+
+  it("returns the requested URL when the page did not redirect", () => {
+    expect(canonicalFor(canonical, canonical, scope)).toBe(canonical);
+  });
+
+  it("returns the landed URL for an in-scope redirect from a bare ID", () => {
+    expect(canonicalFor("https://example.com/hc/articles/1", canonical, scope)).toBe(canonical);
+  });
+
+  it("returns the landed URL for an old slug redirected to the new slug", () => {
+    expect(canonicalFor("https://example.com/hc/articles/1-old", canonical, scope)).toBe(canonical);
+  });
+
+  it("keeps the requested URL when redirected to an out-of-scope sign-in page", () => {
+    const requested = "https://example.com/hc/articles/1";
+    const landed = "https://example.com/auth/signin?return_to=%2Fhc%2Farticles%2F1";
+    expect(canonicalFor(requested, landed, scope)).toBe(requested);
+  });
+
+  it("keeps the requested URL when redirected to another origin", () => {
+    const requested = "https://example.com/hc/articles/1";
+    expect(canonicalFor(requested, "https://login.example.net/hc/articles/1", scope)).toBe(requested);
+    expect(canonicalFor(requested, "http://example.com/hc/articles/1-title", scope)).toBe(requested);
+  });
+
+  it("keeps the requested URL when redirected to an excluded path", () => {
+    const requested = "https://example.com/hc/articles/1";
+    expect(canonicalFor(requested, "https://example.com/hc/private/1", scope)).toBe(requested);
+  });
+
+  it("applies no match filter when match is undefined", () => {
+    const requested = "https://example.com/hc/articles/1";
+    expect(canonicalFor(requested, "https://example.com/other/1", { startUrl: scope.startUrl })).toBe(
+      "https://example.com/other/1"
+    );
+  });
+
+  it("normalises the landed URL like extractLinks: fragment, query, trailing slash dropped", () => {
+    expect(
+      canonicalFor("https://example.com/hc/articles/1", `${canonical}/?sort=asc#section-2`, scope)
+    ).toBe(canonical);
+  });
+
+  it("treats a landed URL that normalises to the requested one as no redirect", () => {
+    const requested = "https://example.com/hc/articles/1-title";
+    expect(canonicalFor(requested, `${requested}/#top`, scope)).toBe(requested);
+    // A requested URL carrying a query (e.g. a start URL) is not rewritten
+    // just because normalisation would drop that query.
+    const withQuery = "https://example.com/hc?locale=en";
+    expect(canonicalFor(withQuery, withQuery, scope)).toBe(withQuery);
+  });
+
+  it("keeps identity query params and drops tracking params under preserveQuery", () => {
+    const qScope = { startUrl: "https://example.com/doc-item", preserveQuery: true };
+    expect(
+      canonicalFor(
+        "https://example.com/doc-item?topicId=1",
+        "https://example.com/doc-item?topicId=1&v=2&utm_source=x#frag",
+        qScope
+      )
+    ).toBe("https://example.com/doc-item?topicId=1&v=2");
+    expect(
+      canonicalFor(
+        "https://example.com/doc-item?topicId=1",
+        "https://example.com/doc-item?topicId=1&utm_source=x",
+        qScope
+      )
+    ).toBe("https://example.com/doc-item?topicId=1");
+  });
+
+  it("returns the requested URL when the landed URL is unparseable", () => {
+    const requested = "https://example.com/hc/articles/1";
+    expect(canonicalFor(requested, "about:blank", scope)).toBe(requested);
+    expect(canonicalFor(requested, "not a url", scope)).toBe(requested);
   });
 });

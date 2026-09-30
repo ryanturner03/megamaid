@@ -101,3 +101,47 @@ function normalizeLink(parsed: URL, preserveQuery: boolean): string {
   const query = params.toString();
   return `${parsed.origin}${path}${query ? `?${query}` : ""}`;
 }
+
+export interface CrawlScope {
+  startUrl: string;
+  match?: string[];
+  exclude?: string[];
+  preserveQuery?: boolean;
+}
+
+/**
+ * Decide which URL a captured page should be recorded under, given the URL we
+ * asked for and the URL the browser landed on after any redirects.
+ *
+ * Some sites serve one page at several URLs and redirect them all to one
+ * canonical URL (e.g. a help centre that redirects /articles/<id> and stale
+ * slugs to /articles/<id>-<current-slug>). Recording the landed URL lets the
+ * crawl capture that page once instead of once per variant.
+ *
+ * The landed URL is normalised the same way as discovered links and is only
+ * used when it is in scope: same origin as startUrl, matches `match`, and is
+ * not excluded. Anything else — notably a sign-in page every URL bounces to
+ * once a session expires — keeps the requested URL, so those pages stay
+ * distinct and can be detected and re-queued rather than collapsing into one.
+ */
+export function canonicalFor(requested: string, landed: string, scope: CrawlScope): string {
+  const preserveQuery = scope.preserveQuery ?? false;
+  let landedUrl: URL;
+  let requestedNormalized: string;
+  try {
+    landedUrl = new URL(landed);
+    requestedNormalized = normalizeLink(new URL(requested), preserveQuery);
+  } catch {
+    return requested;
+  }
+
+  const normalized = normalizeLink(landedUrl, preserveQuery);
+  if (normalized === requestedNormalized) return requested;
+
+  if (landedUrl.origin !== new URL(scope.startUrl).origin) return requested;
+  const path = landedUrl.pathname;
+  if (scope.match && !scope.match.some((p) => matchesPattern(path, p))) return requested;
+  if (scope.exclude && scope.exclude.some((p) => matchesPattern(path, p))) return requested;
+
+  return normalized;
+}

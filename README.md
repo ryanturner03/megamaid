@@ -328,6 +328,10 @@ output/
     configuration.md
 ```
 
+### Redirected URLs
+
+Some sites serve one page at several URLs and redirect them all to one canonical URL (e.g. a help centre that redirects `/articles/<id>` and stale slugs to `/articles/<id>-<slug>`). During a crawl, a page is recorded under the URL it landed on when that URL is in scope (same origin as the start URL, matches `match`, not excluded): the snapshot's `url` is the landed URL and `requestedUrl` holds the URL that redirected there. Later URLs that redirect to an already-captured page are marked done without writing another snapshot. Redirects out of scope, such as to a sign-in page after a session expires, leave the page under its requested URL.
+
 ## Crawl State & Resume
 
 Long-running crawls save progress after every page — both during URL discovery and during snapshotting. If interrupted (crash, auth expiry, network issue), resume from where you left off:

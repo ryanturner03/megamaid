@@ -8,7 +8,7 @@ import type { Page } from "playwright";
 import { saveCrawlState, loadCrawlState, deleteCrawlState } from "./crawlState.js";
 import { writeSnapshot, writeSiteManifest, loadSiteManifest } from "./snapshotWriter.js";
 import { executePreActions } from "./preActions.js";
-import { extractLinks, matchesPattern } from "./crawler.js";
+import { extractLinks, matchesPattern, canonicalFor } from "./crawler.js";
 import { urlToPageName } from "./urlToPageName.js";
 import { mkdir } from "fs/promises";
 import { existsSync } from "fs";
@@ -107,10 +107,15 @@ export class Megamaid {
       referrer?: string;
     } = {}
   ): Promise<SnapshotPageResult> {
-    const outputDir = options.outputDir ?? this.options.outputDir ?? "./output";
-    const selector = options.selector ?? this.options.selector;
-    const minImageSize = options.minImageSize ?? this.options.minImageSize;
+    const { title } = await this.loadPage(url, options.referrer);
+    return this.capturePage(url, title, options);
+  }
 
+  /**
+   * Bring the browser to `url` and return the page title and the URL it landed
+   * on, which differs from `url` when the site redirected.
+   */
+  private async loadPage(url: string, referrer?: string): Promise<{ landedUrl: string; title: string }> {
     // Get browser with session established (reuses existing connection)
     const conn = await this.ensureSession();
 
@@ -128,10 +133,33 @@ export class Megamaid {
       await settleOnly(conn.page, { settleMs: this.options.settleMs });
     } else {
       console.log(`  [snapshot] navigating to ${url}`);
-      await navigateTo(conn.page, url, { referrer: options.referrer, settleMs: this.options.settleMs });
+      await navigateTo(conn.page, url, { referrer, settleMs: this.options.settleMs });
     }
     const pageTitle = await conn.page.title().catch(() => "(unknown)");
-    console.log(`  [snapshot] loaded — title: "${pageTitle}", url: ${conn.page.url()}`);
+    const landedUrl = conn.page.url();
+    console.log(`  [snapshot] loaded — title: "${pageTitle}", url: ${landedUrl}`);
+    return { landedUrl, title: pageTitle };
+  }
+
+  /**
+   * Snapshot the page the browser is currently on, download its images, and
+   * write the snapshot JSON under `url`. `requestedUrl` records the URL that
+   * redirected here, when it differs.
+   */
+  private async capturePage(
+    url: string,
+    pageTitle: string,
+    options: {
+      outputDir?: string;
+      selector?: string;
+      minImageSize?: number;
+      requestedUrl?: string;
+    } = {}
+  ): Promise<SnapshotPageResult> {
+    const outputDir = options.outputDir ?? this.options.outputDir ?? "./output";
+    const selector = options.selector ?? this.options.selector;
+    const minImageSize = options.minImageSize ?? this.options.minImageSize;
+    const conn = await this.ensureSession();
 
     // Dismiss cookie banners that might overlay content
     await dismissCookieBanners(conn.page);
@@ -177,6 +205,7 @@ export class Megamaid {
     const snapshotFile: SnapshotFile = {
       version: 1,
       url,
+      ...(options.requestedUrl ? { requestedUrl: options.requestedUrl } : {}),
       title: pageTitle,
       tree: snapshotResult.tree,
       urlMap: urlMapRecord,
@@ -424,9 +453,12 @@ export class Megamaid {
         const queueSet = new Set(state.queue);
         let requeued = 0;
 
-        // Re-queue completedUrls missing snapshots
+        // Re-queue completedUrls missing snapshots. A URL that redirected to a
+        // captured page has no manifest entry of its own but is still done.
         state.completedUrls = state.completedUrls.filter((url) => {
           if (snapshotted.has(url)) return true;
+          const canonical = state.redirects?.[url];
+          if (canonical && snapshotted.has(canonical)) return true;
           if (!queueSet.has(url)) {
             state.queue.push(url);
             queueSet.add(url);
@@ -525,12 +557,47 @@ export class Megamaid {
         console.log(`[${done + 1}/${total}] ${bar} ${pct}% | ${url}`);
 
         try {
-          // Snapshot the page (reuses browser session)
-          const result = await this.snapshot(url, {
+          // Load the page (reuses browser session), then work out which URL it
+          // belongs under: sites that redirect several URLs to one page should
+          // yield one snapshot, not one per URL.
+          const { landedUrl, title } = await this.loadPage(url, lastUrl);
+          const canonical = canonicalFor(url, landedUrl, {
+            startUrl,
+            match: options.match,
+            exclude: excludePatterns,
+            preserveQuery,
+          });
+          const redirected = canonical !== url;
+
+          if (redirected) {
+            state.redirects = { ...state.redirects, [url]: canonical };
+          }
+
+          if (
+            redirected &&
+            (state.completedUrls.includes(canonical) || manifest.pages.some((p) => p.url === canonical))
+          ) {
+            console.log(`  ↳ duplicate of ${canonical} — skipped`);
+            state.completedUrls.push(url);
+            completed++;
+            lastUrl = canonical;
+            await saveCrawlState(state, outputDir);
+            continue;
+          }
+
+          if (redirected) {
+            console.log(`  ↳ redirected to ${canonical} — capturing under that URL`);
+            // Claim the canonical URL so its own link isn't captured again.
+            if (!state.discoveredUrls.includes(canonical)) state.discoveredUrls.push(canonical);
+            state.queue = state.queue.filter((u) => u !== canonical);
+            state.failedUrls = state.failedUrls.filter((u) => u !== canonical);
+          }
+
+          const result = await this.capturePage(canonical, title, {
             outputDir,
             selector: options.selector ?? this.options.selector,
             minImageSize: options.minImageSize ?? this.options.minImageSize,
-            referrer: lastUrl,
+            requestedUrl: redirected ? url : undefined,
           });
 
           console.log(`  → "${result.snapshotFile.title}" (${result.snapshotFile.nodeCount} nodes, ${result.imageCount} images)`);
@@ -565,7 +632,7 @@ export class Megamaid {
 
           // Update manifest
           const page: SiteManifestPage = {
-            url,
+            url: canonical,
             snapshot: result.snapshotPath,
             imageCount: result.imageCount,
           };
@@ -575,8 +642,9 @@ export class Megamaid {
 
           // Update crawl state
           state.completedUrls.push(url);
+          if (redirected) state.completedUrls.push(canonical);
           completed++;
-          lastUrl = url;
+          lastUrl = canonical;
 
           // Persist both after each page
           await writeSiteManifest(manifest, outputDir);

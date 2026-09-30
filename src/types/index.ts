@@ -38,6 +38,8 @@ export interface SnapshotResult {
 export interface SnapshotFile {
   version: 1;
   url: string;
+  /** The URL that was requested, when it redirected to `url`. */
+  requestedUrl?: string;
   title: string;
   tree: string;
   urlMap: Record<string, string>;
@@ -101,6 +103,8 @@ export interface CrawlState {
   failedUrls: string[];
   excludedUrls: string[];
   queue: string[];
+  /** Requested URL → in-scope URL it redirected to (and was recorded under). */
+  redirects?: Record<string, string>;
   startedAt: string;
   updatedAt: string;
   config: {

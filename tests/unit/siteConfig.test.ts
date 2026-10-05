@@ -113,4 +113,20 @@ describe("loadSiteConfig", () => {
       loadSiteConfig(path.join(fixtureDir, "invalid-settle-ms.toml"))
     ).rejects.toThrow(/settleMs/i);
   });
+
+  it("parses recycleTabEvery", async () => {
+    const config = await loadSiteConfig(path.join(fixtureDir, "valid-recycle-tab.toml"));
+    expect(config.recycleTabEvery).toBe(250);
+  });
+
+  it("leaves recycleTabEvery undefined when absent, so tabs are never recycled", async () => {
+    const config = await loadSiteConfig(path.join(fixtureDir, "valid-minimal.toml"));
+    expect(config.recycleTabEvery).toBeUndefined();
+  });
+
+  it("throws clear error when recycleTabEvery is not a positive integer", async () => {
+    await expect(
+      loadSiteConfig(path.join(fixtureDir, "invalid-recycle-tab.toml"))
+    ).rejects.toThrow(/recycleTabEvery/i);
+  });
 });

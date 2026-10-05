@@ -29,6 +29,8 @@ export interface MegamaidOptions {
   preActions?: PreAction[];
   /** Extra per-page settle before capture, ms (site config). */
   settleMs?: number;
+  /** Swap to a fresh tab every N page loads (site config). */
+  recycleTabEvery?: number;
   startUrl?: string;
   headed?: boolean;
   proxy?: string;
@@ -50,6 +52,8 @@ export class Megamaid {
   private options: MegamaidOptions;
   private connection: BrowserConnection | null = null;
   private sessionEstablished = false;
+  /** Page loads in the current tab, for recycleTabEvery. */
+  private loadsInTab = 0;
 
   constructor(options: MegamaidOptions = {}) {
     this.options = {
@@ -91,7 +95,23 @@ export class Megamaid {
       await closeBrowser(this.connection);
       this.connection = null;
       this.sessionEstablished = false;
+      this.loadsInTab = 0;
     }
+  }
+
+  /**
+   * Once the current tab has loaded recycleTabEvery pages, replace it with a
+   * fresh tab in the same context (see SiteConfig.recycleTabEvery). Only for a
+   * browser we launched: a CDP-attached browser is the user's own.
+   */
+  private async maybeRecycleTab(conn: BrowserConnection): Promise<void> {
+    const every = this.options.recycleTabEvery;
+    if (!every || !conn.isManaged || this.loadsInTab < every) return;
+    const fresh = await conn.page.context().newPage();
+    await conn.page.close();
+    conn.page = fresh;
+    console.log(`  [tab] opened a fresh tab after ${this.loadsInTab} pages (same session)`);
+    this.loadsInTab = 0;
   }
 
   /**
@@ -118,6 +138,8 @@ export class Megamaid {
   private async loadPage(url: string, referrer?: string): Promise<{ landedUrl: string; title: string }> {
     // Get browser with session established (reuses existing connection)
     const conn = await this.ensureSession();
+    await this.maybeRecycleTab(conn);
+    this.loadsInTab++;
 
     // Navigate to the target page — unless preActions already landed us on it.
     //

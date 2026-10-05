@@ -84,6 +84,16 @@ export interface SiteConfig {
    * across every page of a crawl.
    */
   settleMs?: number;
+  /**
+   * Open a fresh tab every N page loads, in the same browser context, and close
+   * the old one (default: never). Some single-page apps leak memory across
+   * client-side navigations, and a tab kept for hundreds of pages renders ever
+   * more slowly until pages are captured before their content arrives. Cookies
+   * and localStorage belong to the context, so a login survives the swap;
+   * sessionStorage is per tab and does not, so leave this unset for sites that
+   * keep auth there.
+   */
+  recycleTabEvery?: number;
 }
 
 export type PreAction =

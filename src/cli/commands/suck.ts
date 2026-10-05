@@ -115,6 +115,7 @@ Crawl behavior:
           sessionPath,
           preActions: siteConfigPreActions,
           settleMs: siteConfig?.settleMs,
+          recycleTabEvery: siteConfig?.recycleTabEvery,
           startUrl: siteConfig?.startUrl,
           headed: opts.headed,
           proxy: opts.proxy,

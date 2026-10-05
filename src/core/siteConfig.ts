@@ -86,6 +86,13 @@ export async function loadSiteConfig(filepath: string): Promise<SiteConfig> {
     config.settleMs = parsed.settleMs;
   }
 
+  if (parsed.recycleTabEvery !== undefined) {
+    if (!Number.isInteger(parsed.recycleTabEvery) || parsed.recycleTabEvery < 1) {
+      throw new Error(`Site config ${filepath}: recycleTabEvery must be a positive integer`);
+    }
+    config.recycleTabEvery = parsed.recycleTabEvery;
+  }
+
   if (parsed.preActions !== undefined) {
     if (!Array.isArray(parsed.preActions)) {
       throw new Error(`Site config ${filepath}: preActions must be an array`);
